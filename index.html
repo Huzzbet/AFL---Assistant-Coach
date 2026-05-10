@@ -1,0 +1,2537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AFL Rotation Tracker</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body {
+      margin: 0;
+      padding: 16px;
+      background: radial-gradient(circle at top, #163a2a 0, #020617 62%, #000 100%);
+      color: #f9fafb;
+      display: flex;
+      justify-content: center;
+    }
+
+    .app-shell {
+      width: 100%;
+      max-width: 1120px;
+      background: #020617;
+      border-radius: 28px;
+      padding: 18px 18px 22px;
+      box-shadow: 0 26px 70px rgba(0, 0, 0, 0.85);
+      border: 1px solid rgba(148, 163, 184, 0.35);
+    }
+
+    .top-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .title-block {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .app-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 14px;
+      background: radial-gradient(circle at 30% 20%, #22c55e, #15803d 55%, #14532d 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 12px 24px rgba(34, 197, 94, 0.45);
+      font-size: 20px;
+    }
+
+    .title-text h1 {
+      margin: 0;
+      font-size: 20px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+
+    .title-text span {
+      font-size: 12px;
+      color: #9ca3af;
+    }
+
+    .team-select-wrap {
+      margin-left: 8px;
+    }
+
+    .team-select-label {
+      font-size: 10px;
+      color: #9ca3af;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      margin-bottom: 3px;
+    }
+
+    .team-select {
+      font-size: 12px;
+      border-radius: 999px;
+      padding: 4px 10px;
+      border: 1px solid rgba(148, 163, 184, 0.7);
+      background: #020617;
+      color: #e5e7eb;
+    }
+
+    .clock-block {
+      text-align: right;
+      min-width: 250px;
+    }
+
+    .clock-label {
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: #9ca3af;
+      margin-bottom: 4px;
+    }
+
+    .clock-display {
+      font-size: 26px;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      margin-bottom: 6px;
+    }
+
+    .btn {
+      border-radius: 999px;
+      padding: 6px 14px;
+      border: 1px solid rgba(148, 163, 184, 0.6);
+      background: #020617;
+      color: #e5e7eb;
+      font-size: 12px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: transform 0.12s ease-out, box-shadow 0.12s ease-out;
+    }
+
+    .btn.primary {
+      background: radial-gradient(circle at 15% 0, #16a34a, #15803d 55%, #14532d 100%);
+      border-color: transparent;
+      box-shadow: 0 10px 24px rgba(34, 197, 94, 0.45);
+    }
+
+    .btn.small {
+      padding: 4px 10px;
+      font-size: 11px;
+    }
+
+    .btn:active {
+      transform: translateY(1px);
+    }
+
+    .mode-toggle {
+      margin-top: 6px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .page-toggle {
+      justify-content: flex-start;
+      margin: 0 0 14px;
+      padding: 6px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(55, 65, 81, 0.9);
+      width: fit-content;
+    }
+
+    .mode-pill {
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.7);
+      background: transparent;
+      color: #e5e7eb;
+      font-size: 11px;
+      padding: 3px 10px;
+      cursor: pointer;
+      transition: transform 0.15s ease-out, box-shadow 0.15s ease-out, background 0.15s ease-out;
+    }
+
+    .mode-pill.active {
+      background: radial-gradient(circle at 15% 0, #16a34a, #14532d 70%);
+      border-color: transparent;
+      box-shadow: 0 10px 22px rgba(34, 197, 94, 0.28);
+    }
+
+    .layout-grid {
+      display: grid;
+      grid-template-columns: 1.35fr 1fr;
+      gap: 16px;
+    }
+
+    @media (max-width: 900px) {
+      .layout-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .clock-block {
+        text-align: left;
+      }
+    }
+
+    .panel {
+      background: radial-gradient(circle at top, #020617 0, #020617 55%, #000 100%);
+      border-radius: 22px;
+      padding: 14px;
+      border: 1px solid rgba(55, 65, 81, 0.9);
+      box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.7);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      gap: 10px;
+    }
+
+    .panel-title {
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #9ca3af;
+    }
+
+    .panel-sub {
+      font-size: 11px;
+      color: #6b7280;
+    }
+
+    .sub-mode-btn {
+      font-size: 11px;
+      border-radius: 999px;
+      padding: 4px 12px;
+      border: 1px solid rgba(148, 163, 184, 0.7);
+      background: transparent;
+      color: #e5e7eb;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: transform 0.15s ease-out, box-shadow 0.15s ease-out, background 0.15s ease-out;
+    }
+
+    .sub-mode-btn.on {
+      border-color: rgba(34, 197, 94, 0.9);
+      background: radial-gradient(circle at 20% 0, #16a34a, #14532d 70%);
+      color: #ecfdf5;
+      box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.8);
+    }
+
+    .field-wrapper {
+      border-radius: 20px;
+      padding: 14px 12px 12px;
+      background: radial-gradient(circle at top, #020617 0, #020617 50%, #020617 100%);
+      border: 1px solid rgba(75, 85, 99, 0.9);
+      margin-bottom: 10px;
+    }
+
+    .field-label {
+      text-align: center;
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #4b5563;
+      margin-bottom: 8px;
+    }
+
+    .formation-grid {
+      display: grid;
+      row-gap: 8px;
+    }
+
+    .formation-row {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      align-items: center;
+    }
+
+    .formation-row.two {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      width: 68%;
+      margin: 0 auto;
+    }
+
+    .formation-row.one {
+      grid-template-columns: 1fr;
+      width: 45%;
+      margin: 0 auto;
+    }
+
+    .formation-line-label {
+      text-align: center;
+      font-size: 9px;
+      color: #64748b;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+
+    .player-chip {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 9px;
+      border-radius: 999px;
+      background: radial-gradient(circle at 15% 0, #020617, #020617 70%, #020617 100%);
+      border: 1px solid rgba(55, 65, 81, 0.9);
+      box-shadow: 0 10px 22px rgba(15, 23, 42, 0.9);
+      cursor: pointer;
+      position: relative;
+      transition: box-shadow 0.18s ease-out, border-color 0.18s ease-out, transform 0.18s ease-out;
+    }
+
+    .player-chip.selected {
+      border-color: #22c55e;
+      box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.9), 0 14px 28px rgba(34, 197, 94, 0.45);
+      transform: translateY(-1px) scale(1.01);
+    }
+
+    .number-pill {
+      width: 28px;
+      height: 28px;
+      border-radius: 999px;
+      background: radial-gradient(circle at 30% 20%, #22c55e, #15803d 60%, #14532d 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 700;
+      color: #ecfdf5;
+      flex-shrink: 0;
+    }
+
+    .player-meta {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .player-name {
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .player-role {
+      font-size: 10px;
+      color: #9ca3af;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+    }
+
+    .player-mins {
+      font-size: 10px;
+      color: #cbd5f5;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .watch-btn {
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.7);
+      background: transparent;
+      color: #e5e7eb;
+      font-size: 10px;
+      padding: 2px 6px;
+      cursor: pointer;
+      transition: background 0.12s ease-out, transform 0.12s ease-out;
+    }
+
+    .watch-btn.on {
+      background: radial-gradient(circle at 15% 0, #f97316, #c2410c 70%);
+      border-color: transparent;
+      color: #fefce8;
+    }
+
+    .bench-wrapper {
+      margin-top: 8px;
+      position: relative;
+    }
+
+    .bench-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .bench-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    @media (max-width: 640px) {
+      .bench-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .formation-row,
+      .formation-row.two,
+      .formation-row.one {
+        grid-template-columns: 1fr;
+        width: 100%;
+      }
+    }
+
+    .bench-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      padding: 6px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(55, 65, 81, 0.9);
+      background: radial-gradient(circle at 10% 0, #020617, #020617 70%, #020617 100%);
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.85);
+      cursor: pointer;
+      transition: box-shadow 0.18s ease-out, border-color 0.18s ease-out, transform 0.18s ease-out;
+      position: relative;
+    }
+
+    .bench-card.selected {
+      border-color: #22c55e;
+      box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.9), 0 12px 24px rgba(34, 197, 94, 0.45);
+      transform: translateY(-1px) scale(1.01);
+    }
+
+    .bench-main {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .bench-number {
+      width: 26px;
+      height: 26px;
+      border-radius: 999px;
+      background: radial-gradient(circle at 30% 20%, #111827, #020617 70%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      color: #e5e7eb;
+      flex-shrink: 0;
+    }
+
+    .bench-labels {
+      font-size: 12px;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .bench-mins {
+      font-size: 11px;
+      color: #9ca3af;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .bench-sat {
+      font-size: 10px;
+      color: #6b7280;
+      font-variant-numeric: tabular-nums;
+      margin-top: 1px;
+    }
+
+    .bench-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .bench-arrow {
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.8);
+      background: transparent;
+      color: #e5e7eb;
+      font-size: 10px;
+      padding: 2px 6px;
+      cursor: pointer;
+      transition: background 0.12s ease-out, transform 0.12s ease-out;
+    }
+
+    .bench-arrow:active {
+      transform: translateY(1px);
+    }
+
+    .nextup-pill {
+      position: absolute;
+      right: 44px;
+      top: 6px;
+      font-size: 9px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      padding: 2px 6px;
+      border-radius: 999px;
+      border: 1px solid rgba(56, 189, 248, 0.75);
+      background: radial-gradient(circle at 20% 0, rgba(56, 189, 248, 0.30), rgba(2, 6, 23, 0.75) 70%);
+      color: #bae6fd;
+      box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.15);
+      pointer-events: none;
+      white-space: nowrap;
+    }
+
+    .bench-card.nextup {
+      border-color: rgba(56, 189, 248, 0.75);
+      box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.25), 0 10px 22px rgba(8, 47, 73, 0.55);
+    }
+
+    .bench-tip {
+      font-size: 10px;
+      color: #6b7280;
+      margin-top: 4px;
+    }
+
+    .sub-actions {
+      margin-top: 8px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .minutes-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 6px;
+      gap: 8px;
+    }
+
+    .minutes-sub {
+      font-size: 11px;
+      color: #9ca3af;
+    }
+
+    .segment-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+      flex-wrap: wrap;
+    }
+
+    .segment-label {
+      font-size: 11px;
+      color: #9ca3af;
+    }
+
+    .segment-buttons {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .segment-btn {
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.7);
+      background: transparent;
+      color: #e5e7eb;
+      font-size: 11px;
+      padding: 3px 9px;
+      cursor: pointer;
+      transition: transform 0.15s ease-out, box-shadow 0.15s ease-out, background 0.15s ease-out;
+    }
+
+    .segment-btn.active {
+      background: radial-gradient(circle at 15% 0, #16a34a, #14532d 70%);
+      border-color: transparent;
+      animation: segmentPulse 2.4s ease-in-out infinite;
+    }
+
+    .minutes-list {
+      max-height: 620px;
+      overflow-y: auto;
+      margin-top: 6px;
+      border-radius: 16px;
+      border: 1px solid rgba(55, 65, 81, 0.9);
+      padding: 6px 8px;
+      background: radial-gradient(circle at top, #020617 0, #020617 60%, #020617 100%);
+    }
+
+    .minutes-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 2px;
+      border-radius: 10px;
+      transition: background 0.15s ease-out, transform 0.15s ease-out;
+      position: relative;
+    }
+
+    .minutes-row + .minutes-row {
+      border-top: 1px dashed rgba(55, 65, 81, 0.9);
+    }
+
+    .minutes-row.on {
+      background: radial-gradient(circle at left, rgba(34, 197, 94, 0.14), transparent 70%);
+    }
+
+    .minutes-nextup {
+      font-size: 9px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      padding: 2px 6px;
+      border-radius: 999px;
+      border: 1px solid rgba(56, 189, 248, 0.75);
+      background: radial-gradient(circle at 20% 0, rgba(56, 189, 248, 0.28), rgba(2, 6, 23, 0.75) 70%);
+      color: #bae6fd;
+      margin-left: 6px;
+      flex-shrink: 0;
+    }
+
+    .minutes-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .minutes-number {
+      width: 22px;
+      height: 22px;
+      border-radius: 999px;
+      background: radial-gradient(circle at 30% 20%, #0f172a, #020617 70%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      color: #e5e7eb;
+      flex-shrink: 0;
+    }
+
+    .minutes-name-block {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .minutes-role {
+      font-size: 10px;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+    }
+
+    .minutes-status {
+      font-size: 10px;
+      color: #22c55e;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+    }
+
+    .minutes-status.bench {
+      color: #9ca3af;
+    }
+
+    .minutes-sat {
+      font-size: 10px;
+      color: #6b7280;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .minutes-time {
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      color: #e5e7eb;
+      margin-left: 8px;
+      flex-shrink: 0;
+    }
+
+    .minutes-watch-pill {
+      font-size: 10px;
+      border-radius: 999px;
+      padding: 2px 6px;
+      background: radial-gradient(circle at 10% 0, #f97316, #b45309 80%);
+      color: #fefce8;
+    }
+
+    .alerts {
+      margin-top: 8px;
+      font-size: 11px;
+    }
+
+    .alert-line {
+      padding: 5px 6px;
+      border-radius: 10px;
+      margin-bottom: 4px;
+      border: 1px solid rgba(59, 130, 246, 0.6);
+      background: radial-gradient(circle at left, rgba(59, 130, 246, 0.14), transparent 70%);
+    }
+
+    .alert-line.warn {
+      border-color: rgba(234, 179, 8, 0.8);
+      background: radial-gradient(circle at left, rgba(234, 179, 8, 0.18), transparent 70%);
+    }
+
+    .suggestion-card {
+      margin-top: 6px;
+      font-size: 11px;
+      border-radius: 14px;
+      padding: 7px 8px 8px;
+      border: 1px solid rgba(56, 189, 248, 0.7);
+      background: radial-gradient(circle at top left, rgba(8, 47, 73, 0.9), #020617 70%);
+      box-shadow: 0 14px 30px rgba(8, 47, 73, 0.8);
+    }
+
+    .suggestion-title {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      color: #7dd3fc;
+      margin-bottom: 3px;
+    }
+
+    .suggestion-pair {
+      margin-bottom: 3px;
+      padding: 3px 4px;
+      border-radius: 10px;
+      background: radial-gradient(circle at left, rgba(15, 23, 42, 0.8), transparent 70%);
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+
+    .suggestion-pair-main {
+      display: flex;
+      justify-content: space-between;
+      gap: 4px;
+    }
+
+    .suggestion-off,
+    .suggestion-on {
+      font-size: 11px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .suggestion-label {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: #9ca3af;
+    }
+
+    .suggestion-player {
+      color: #e5e7eb;
+      font-weight: 500;
+    }
+
+    .suggestion-gap {
+      font-size: 9px;
+      color: #a5b4fc;
+      margin-top: 1px;
+    }
+
+    .suggestion-tag {
+      margin-top: 4px;
+      color: #bae6fd;
+      font-size: 10px;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .segments {
+      margin-top: 8px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 8px;
+    }
+
+    .segment-card {
+      border-radius: 14px;
+      border: 1px solid rgba(55, 65, 81, 0.9);
+      padding: 6px 8px;
+      font-size: 11px;
+      background: radial-gradient(circle at top left, #020617 0, #000 80%);
+      transition: box-shadow 0.2s ease-out, transform 0.2s ease-out, border-color 0.2s ease-out;
+    }
+
+    .segment-card-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: #9ca3af;
+      margin-bottom: 3px;
+    }
+
+    .footnote {
+      font-size: 10px;
+      color: #6b7280;
+      margin-top: 6px;
+    }
+
+    .fatigue-wrap {
+      margin-top: 2px;
+    }
+
+    .fatigue-bar-bg {
+      width: 100%;
+      height: 4px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.9);
+      overflow: hidden;
+    }
+
+    .fatigue-bar-inner {
+      height: 100%;
+      border-radius: 999px;
+      transition: width 0.25s ease-out;
+    }
+
+    .fatigue-low {
+      background: linear-gradient(to right, #22c55e, #15803d);
+    }
+
+    .fatigue-med {
+      background: linear-gradient(to right, #eab308, #ca8a04);
+    }
+
+    .fatigue-high {
+      background: linear-gradient(to right, #f97316, #b91c1c);
+    }
+
+    .on-field-active {
+      animation: glowPulse 2.2s ease-in-out infinite;
+    }
+
+    @keyframes glowPulse {
+      0% {
+        box-shadow: 0 10px 22px rgba(34, 197, 94, 0.10);
+        border-color: rgba(55, 65, 81, 0.9);
+      }
+      50% {
+        box-shadow: 0 14px 30px rgba(34, 197, 94, 0.35);
+        border-color: rgba(34, 197, 94, 0.75);
+      }
+      100% {
+        box-shadow: 0 10px 22px rgba(34, 197, 94, 0.10);
+        border-color: rgba(55, 65, 81, 0.9);
+      }
+    }
+
+    @keyframes segmentPulse {
+      0% {
+        transform: translateY(0);
+        box-shadow: 0 0 0 rgba(34, 197, 94, 0);
+      }
+      50% {
+        transform: translateY(-1px);
+        box-shadow: 0 0 8px rgba(34, 197, 94, 0.45);
+      }
+      100% {
+        transform: translateY(0);
+        box-shadow: 0 0 0 rgba(34, 197, 94, 0);
+      }
+    }
+
+    .btn-haptic {
+      animation: hapticTap 0.12s ease-out;
+    }
+
+    @keyframes hapticTap {
+      0% { transform: scale(1); }
+      50% { transform: scale(0.96); }
+      100% { transform: scale(1); }
+    }
+
+    .panel-flash,
+    .segment-flash {
+      animation: panelFlash 0.35s ease-out;
+    }
+
+    @keyframes panelFlash {
+      0% {
+        box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.0);
+        border-color: rgba(55, 65, 81, 0.9);
+      }
+      40% {
+        box-shadow: 0 0 18px 0 rgba(34, 197, 94, 0.55);
+        border-color: rgba(34, 197, 94, 0.85);
+      }
+      100% {
+        box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.0);
+        border-color: rgba(55, 65, 81, 0.9);
+      }
+    }
+
+    /* AFL OVAL BOARD */
+
+    .full-court-wrap {
+      margin-top: 2px;
+    }
+
+    .full-court-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+
+    .full-court-note {
+      font-size: 11px;
+      color: #9ca3af;
+    }
+
+    .full-court {
+      position: relative;
+      width: 100%;
+      height: 680px;
+      border-radius: 50% / 42%;
+      background:
+        radial-gradient(ellipse at 50% 50%, rgba(34, 197, 94, 0.15), transparent 35%),
+        radial-gradient(circle at 20% 10%, rgba(56, 189, 248, 0.08), transparent 30%),
+        linear-gradient(180deg, #064e3b 0%, #052e2b 48%, #020617 100%);
+      border: 2px solid rgba(187, 247, 208, 0.35);
+      overflow: hidden;
+      box-shadow: inset 0 0 55px rgba(0, 0, 0, 0.75), 0 18px 42px rgba(0, 0, 0, 0.55);
+      touch-action: none;
+    }
+
+    .court-line {
+      position: absolute;
+      border-color: rgba(226, 232, 240, 0.34);
+      pointer-events: none;
+    }
+
+    .oval-centre-line {
+      top: 50%;
+      left: 5%;
+      width: 90%;
+      height: 1px;
+      background: rgba(226, 232, 240, 0.28);
+    }
+
+    .centre-square {
+      top: 50%;
+      left: 50%;
+      width: 190px;
+      height: 190px;
+      border: 2px solid rgba(226, 232, 240, 0.24);
+      transform: translate(-50%, -50%);
+      border-radius: 8px;
+    }
+
+    .centre-circle {
+      top: 50%;
+      left: 50%;
+      width: 92px;
+      height: 92px;
+      border: 2px solid rgba(226, 232, 240, 0.32);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    .centre-dot {
+      top: 50%;
+      left: 50%;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: rgba(226, 232, 240, 0.55);
+      transform: translate(-50%, -50%);
+    }
+
+    .arc-50 {
+      left: 50%;
+      width: 520px;
+      height: 220px;
+      border: 2px solid rgba(226, 232, 240, 0.23);
+      transform: translateX(-50%);
+    }
+
+    .arc-50.top {
+      top: 48px;
+      border-radius: 0 0 260px 260px;
+      border-top: none;
+    }
+
+    .arc-50.bottom {
+      bottom: 48px;
+      border-radius: 260px 260px 0 0;
+      border-bottom: none;
+    }
+
+    .goal-square {
+      left: 50%;
+      width: 110px;
+      height: 42px;
+      border: 2px solid rgba(226, 232, 240, 0.25);
+      transform: translateX(-50%);
+    }
+
+    .goal-square.top {
+      top: 0;
+      border-top: none;
+      border-radius: 0 0 10px 10px;
+    }
+
+    .goal-square.bottom {
+      bottom: 0;
+      border-bottom: none;
+      border-radius: 10px 10px 0 0;
+    }
+
+    .goal-post {
+      position: absolute;
+      left: 50%;
+      width: 72px;
+      height: 12px;
+      transform: translateX(-50%);
+      display: flex;
+      justify-content: space-between;
+      pointer-events: none;
+    }
+
+    .goal-post.top {
+      top: 6px;
+    }
+
+    .goal-post.bottom {
+      bottom: 6px;
+    }
+
+    .goal-post span {
+      width: 4px;
+      height: 28px;
+      border-radius: 999px;
+      background: rgba(248, 250, 252, 0.75);
+      box-shadow: 0 0 10px rgba(248, 250, 252, 0.3);
+    }
+
+    .full-court-label {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: rgba(226, 232, 240, 0.35);
+      pointer-events: none;
+    }
+
+    .full-court-label.top {
+      top: 118px;
+    }
+
+    .full-court-label.bottom {
+      bottom: 118px;
+    }
+
+    .court-player {
+      position: absolute;
+      width: 54px;
+      height: 54px;
+      border-radius: 999px;
+      background:
+        radial-gradient(circle at 30% 20%, #22c55e, #16a34a 62%, #14532d 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #ecfdf5;
+      font-weight: 800;
+      cursor: grab;
+      user-select: none;
+      touch-action: none;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 14px 28px rgba(34, 197, 94, 0.38);
+      border: 2px solid rgba(187, 247, 208, 0.8);
+      z-index: 5;
+    }
+
+    .court-player:active {
+      cursor: grabbing;
+    }
+
+    .court-player-number {
+      font-size: 16px;
+      line-height: 1;
+    }
+
+    .court-player-name {
+      position: absolute;
+      top: 58px;
+      left: 50%;
+      transform: translateX(-50%);
+      white-space: nowrap;
+      font-size: 10px;
+      font-weight: 600;
+      color: #e5e7eb;
+      background: rgba(2, 6, 23, 0.78);
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      border-radius: 999px;
+      padding: 3px 7px;
+      box-shadow: 0 8px 18px rgba(0, 0, 0, 0.5);
+    }
+
+    .court-player-role {
+      position: absolute;
+      bottom: -6px;
+      right: -6px;
+      min-width: 24px;
+      height: 22px;
+      border-radius: 999px;
+      background: #020617;
+      border: 1px solid rgba(148, 163, 184, 0.8);
+      color: #bbf7d0;
+      font-size: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 5px;
+    }
+
+    .full-court-legend {
+      margin-top: 10px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 8px;
+    }
+
+    .legend-card {
+      border-radius: 14px;
+      border: 1px solid rgba(55, 65, 81, 0.9);
+      background: radial-gradient(circle at top left, #020617 0, #000 80%);
+      padding: 8px 10px;
+      font-size: 11px;
+    }
+
+    .legend-card strong {
+      color: #e5e7eb;
+    }
+
+    .legend-card span {
+      color: #9ca3af;
+      display: block;
+      margin-top: 2px;
+    }
+
+    @media (max-width: 760px) {
+      .full-court {
+        height: 640px;
+      }
+
+      .arc-50 {
+        width: 350px;
+      }
+
+      .court-player {
+        width: 46px;
+        height: 46px;
+      }
+
+      .court-player-name {
+        font-size: 9px;
+        top: 50px;
+      }
+
+      .centre-square {
+        width: 145px;
+        height: 145px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app-shell">
+
+    <div class="top-row">
+      <div style="display:flex; align-items:flex-start; flex-wrap:wrap; gap:10px;">
+        <div class="title-block">
+          <div class="app-icon">🏉</div>
+          <div class="title-text">
+            <h1>AFL ROTATION TRACKER</h1>
+            <span>Live minutes, interchange tracking & magnetic AFL oval board</span>
+          </div>
+        </div>
+
+        <div class="team-select-wrap">
+          <div class="team-select-label">Team</div>
+          <select id="teamSelect" class="team-select"></select>
+        </div>
+      </div>
+
+      <div class="clock-block">
+        <div class="clock-label">Quarter Clock</div>
+        <div class="clock-display" id="clockDisplay">15:00</div>
+        <div>
+          <button class="btn primary" id="startBtn">Start</button>
+          <button class="btn" id="resetBtn">Reset</button>
+        </div>
+
+        <div class="mode-toggle" id="modeToggle">
+          <button class="mode-pill active" data-mode="junior">Junior AFL · 4×15</button>
+          <button class="mode-pill" data-mode="practice">Practice · 4×12</button>
+          <button class="mode-pill" data-mode="full">Full Match · 4×20</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="mode-toggle page-toggle" id="pageToggle">
+      <button class="mode-pill active" data-page="rotation">Rotation</button>
+      <button class="mode-pill" data-page="court">AFL Oval</button>
+    </div>
+
+    <div id="rotationPage">
+      <div class="layout-grid">
+        <div class="panel" id="leftPanel">
+          <div class="panel-header">
+            <div>
+              <div class="panel-title">On Field</div>
+              <div class="panel-sub">AFL shape · use ▲ / ▼ to arrange spots · Interchange Mode to mark on/off</div>
+            </div>
+            <button class="sub-mode-btn" id="subModeBtn">🧩 Interchange Mode</button>
+          </div>
+
+          <div class="field-wrapper">
+            <div class="field-label">Team Shape</div>
+            <div class="formation-grid" id="fieldArea">
+              <div class="formation-line-label">Forwards</div>
+              <div class="formation-row" id="forwardsRow"></div>
+
+              <div class="formation-line-label">Half Forwards</div>
+              <div class="formation-row" id="halfForwardsRow"></div>
+
+              <div class="formation-line-label">Midfield</div>
+              <div class="formation-row" id="midfieldRow"></div>
+
+              <div class="formation-line-label">Followers</div>
+              <div class="formation-row" id="followersRow"></div>
+
+              <div class="formation-line-label">Half Backs</div>
+              <div class="formation-row" id="halfBacksRow"></div>
+
+              <div class="formation-line-label">Backs</div>
+              <div class="formation-row" id="backsRow"></div>
+            </div>
+          </div>
+
+          <div class="bench-wrapper" id="benchWrapper">
+            <div class="bench-header-row">
+              <div class="panel-title">Interchange</div>
+            </div>
+            <div class="bench-grid" id="benchGrid"></div>
+            <div class="bench-tip">
+              Tip: use the ▲ / ▼ buttons on interchange players to reorder them to match the bench.
+            </div>
+            <div class="sub-actions">
+              <button class="btn small primary" id="confirmSubBtn">Confirm Interchange</button>
+              <button class="btn small" id="cancelSubBtn">Cancel</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel" id="rightPanel">
+          <div class="minutes-header">
+            <div>
+              <div class="panel-title">Player Minutes</div>
+              <div class="minutes-sub">Total field time across the match</div>
+            </div>
+            <div class="minutes-sub" id="runningStatus">Clock paused · tap Start to begin</div>
+          </div>
+
+          <div class="segment-row">
+            <div class="segment-label">Quarter: <span id="segmentLabel">Q1 · Junior AFL</span></div>
+            <div class="segment-buttons" id="segmentButtons"></div>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              <button class="btn small" id="saveSegmentBtn">Save Snapshot</button>
+              <button class="btn small primary" id="suggestSubBtn">Suggest Interchange</button>
+            </div>
+          </div>
+
+          <div class="minutes-list" id="minutesList"></div>
+          <div class="alerts" id="alerts"></div>
+
+          <div class="suggestion-card hidden" id="suggestionCard">
+            <div class="suggestion-title">Suggested Interchanges</div>
+            <div id="suggestPairs"></div>
+            <div class="suggestion-tag" id="suggestTag"></div>
+          </div>
+
+          <div class="segments" id="segments"></div>
+
+          <div class="footnote">
+            Tap Interchange Mode to make changes safely, then Confirm Interchange. The app handles field-time tracking so you can stay focused on coaching.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="courtPage" class="hidden">
+      <div class="panel">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">AFL Oval Magnet Board</div>
+            <div class="panel-sub">Drag the current 18 into position. Updates automatically after interchanges.</div>
+          </div>
+          <button class="btn small" id="resetCourtPositionsBtn">Reset Spots</button>
+        </div>
+
+        <div class="full-court-wrap">
+          <div class="full-court-toolbar">
+            <div class="full-court-note">
+              Magnetic board view · use for stoppage setup, kick-ins, forward press, defensive shape and match-ups.
+            </div>
+          </div>
+
+          <div class="full-court" id="fullCourt">
+            <div class="court-line oval-centre-line"></div>
+            <div class="court-line centre-square"></div>
+            <div class="court-line centre-circle"></div>
+            <div class="court-line centre-dot"></div>
+
+            <div class="court-line arc-50 top"></div>
+            <div class="court-line arc-50 bottom"></div>
+
+            <div class="court-line goal-square top"></div>
+            <div class="court-line goal-square bottom"></div>
+
+            <div class="goal-post top"><span></span><span></span></div>
+            <div class="goal-post bottom"><span></span><span></span></div>
+
+            <div class="full-court-label top">Forward 50</div>
+            <div class="full-court-label bottom">Defensive 50</div>
+
+            <div id="fullCourtPlayers"></div>
+          </div>
+
+          <div class="full-court-legend" id="fullCourtLegend"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // ---------- CONFIG ----------
+    const TEAM_CONFIGS = {
+      junior_afl: {
+        name: 'Junior AFL Squad',
+        players: [
+          { id: 1,  number: 1,  name: 'Archer Kenny',       short: 'BP',  long: 'Back Pocket' },
+          { id: 2,  number: 2,  name: 'Bill Pham',          short: 'FB',  long: 'Full Back' },
+          { id: 3,  number: 3,  name: "Thomas O'Sullivan",  short: 'BP',  long: 'Back Pocket' },
+
+          { id: 4,  number: 4,  name: 'Jacob Nguyen',       short: 'HBF', long: 'Half Back Flank' },
+          { id: 5,  number: 5,  name: 'Tate Power',         short: 'CHB', long: 'Centre Half Back' },
+          { id: 6,  number: 6,  name: 'Ethan Poon',         short: 'HBF', long: 'Half Back Flank' },
+
+          { id: 7,  number: 7,  name: 'Rodion Prystupa',    short: 'W',   long: 'Wing' },
+          { id: 8,  number: 8,  name: 'Alvin Chen',         short: 'C',   long: 'Centre' },
+          { id: 9,  number: 9,  name: 'Max Payne',          short: 'W',   long: 'Wing' },
+
+          { id: 10, number: 10, name: 'Max Armstrong',      short: 'R',   long: 'Ruck' },
+          { id: 11, number: 11, name: "Tom D'Amelio",       short: 'RR',  long: 'Ruck Rover' },
+          { id: 12, number: 12, name: 'Brooks Hurren',      short: 'Rov', long: 'Rover' },
+
+          { id: 13, number: 13, name: 'Archie Stone',       short: 'HFF', long: 'Half Forward Flank' },
+          { id: 14, number: 14, name: 'Ethan Lieberthal',   short: 'CHF', long: 'Centre Half Forward' },
+          { id: 15, number: 15, name: 'Lucas Nguyen',       short: 'HFF', long: 'Half Forward Flank' },
+
+          { id: 16, number: 16, name: 'Jediah Rayer',       short: 'FP',  long: 'Forward Pocket' },
+          { id: 17, number: 17, name: 'Lenny McArthur',     short: 'FF',  long: 'Full Forward' },
+          { id: 18, number: 18, name: 'James Sullivan',     short: 'FP',  long: 'Forward Pocket' },
+
+          { id: 19, number: 19, name: 'Max Arden',          short: 'INT', long: 'Interchange' },
+          { id: 20, number: 20, name: 'Jax',                short: 'INT', long: 'Interchange' },
+          { id: 21, number: 21, name: 'Ty Rosen',           short: 'INT', long: 'Interchange' },
+          { id: 22, number: 22, name: 'Calvin',             short: 'INT', long: 'Interchange' }
+        ],
+        initialOn: [16, 17, 18, 13, 14, 15, 7, 8, 9, 10, 11, 12, 4, 5, 6, 1, 2, 3],
+        initialBench: [19, 20, 21, 22]
+      }
+    };
+
+    const MODES = {
+      junior: {
+        label: 'Junior AFL',
+        segmentLabels: ['Q1', 'Q2', 'Q3', 'Q4'],
+        segmentLength: 15 * 60
+      },
+      practice: {
+        label: 'Practice',
+        segmentLabels: ['Q1', 'Q2', 'Q3', 'Q4'],
+        segmentLength: 12 * 60
+      },
+      full: {
+        label: 'Full Match',
+        segmentLabels: ['Q1', 'Q2', 'Q3', 'Q4'],
+        segmentLength: 20 * 60
+      }
+    };
+
+    const TOTAL_GAME_SECONDS = {
+      junior: MODES.junior.segmentLength * MODES.junior.segmentLabels.length,
+      practice: MODES.practice.segmentLength * MODES.practice.segmentLabels.length,
+      full: MODES.full.segmentLength * MODES.full.segmentLabels.length
+    };
+
+    const DEFAULT_COURT_POSITIONS = [
+      { x: 28, y: 18 }, { x: 50, y: 14 }, { x: 72, y: 18 },
+      { x: 28, y: 30 }, { x: 50, y: 28 }, { x: 72, y: 30 },
+      { x: 20, y: 48 }, { x: 50, y: 50 }, { x: 80, y: 48 },
+      { x: 44, y: 54 }, { x: 56, y: 54 }, { x: 50, y: 60 },
+      { x: 28, y: 70 }, { x: 50, y: 72 }, { x: 72, y: 70 },
+      { x: 28, y: 84 }, { x: 50, y: 86 }, { x: 72, y: 84 }
+    ];
+
+    // ---------- STATE ----------
+    const state = {
+      teamId: 'junior_afl',
+      mode: 'junior',
+      currentSegment: 'Q1',
+      clockSeconds: MODES.junior.segmentLength,
+      running: false,
+      onCourt: [...TEAM_CONFIGS.junior_afl.initialOn],
+      bench: [...TEAM_CONFIGS.junior_afl.initialBench],
+      minutes: {},
+      fouls: {},
+      subMode: false,
+      selectedOn: [],
+      selectedBench: [],
+      segments: [],
+      lastWentBenchAt: {},
+      currentPage: 'rotation',
+      fullCourtPositions: {}
+    };
+
+    // ---------- HELPERS ----------
+    function saveState() {
+      try {
+        localStorage.setItem('aflRotationTrackerState', JSON.stringify(state));
+      } catch (err) {
+        console.warn('Could not save AFL rotation tracker state', err);
+      }
+    }
+
+    function loadSavedState() {
+      const saved = localStorage.getItem('aflRotationTrackerState');
+      if (!saved) return false;
+
+      try {
+        const parsed = JSON.parse(saved);
+        Object.assign(state, parsed);
+        return true;
+      } catch (err) {
+        console.warn('Could not load saved AFL rotation tracker state', err);
+        return false;
+      }
+    }
+
+    function clearSavedState() {
+      localStorage.removeItem('aflRotationTrackerState');
+    }
+
+    function currentTeam() {
+      return TEAM_CONFIGS[state.teamId];
+    }
+
+    function allPlayers() {
+      return currentTeam().players;
+    }
+
+    function findPlayer(id) {
+      return allPlayers().find(p => p.id === id);
+    }
+
+    function formatTime(sec) {
+      const safe = Number.isFinite(sec) ? sec : 0;
+      const s = Math.max(0, Math.floor(safe));
+      const m = Math.floor(s / 60);
+      const r = s % 60;
+      return `${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`;
+    }
+
+    function getElapsedGameSeconds() {
+      const modeCfg = MODES[state.mode];
+      if (!modeCfg) return 0;
+
+      const labels = modeCfg.segmentLabels;
+      const segIndex = labels.indexOf(state.currentSegment);
+
+      const completedSegments = Math.max(0, segIndex);
+      const elapsedCompleted = completedSegments * modeCfg.segmentLength;
+      const elapsedCurrent = modeCfg.segmentLength - state.clockSeconds;
+
+      const total = elapsedCompleted + elapsedCurrent;
+      const maxTotal = TOTAL_GAME_SECONDS[state.mode] || modeCfg.segmentLength * modeCfg.segmentLabels.length;
+
+      return Math.max(0, Math.min(maxTotal, total));
+    }
+
+    function initPlayerStats() {
+      state.minutes = {};
+      state.fouls = {};
+      allPlayers().forEach(p => {
+        state.minutes[p.id] = 0;
+        state.fouls[p.id] = false;
+      });
+    }
+
+    function initBenchTimers() {
+      const elapsed = getElapsedGameSeconds();
+      state.lastWentBenchAt = {};
+      allPlayers().forEach(p => state.lastWentBenchAt[p.id] = null);
+      state.bench.forEach(id => state.lastWentBenchAt[id] = elapsed);
+    }
+
+    function resetFullCourtPositions() {
+      state.fullCourtPositions = {};
+      state.onCourt.forEach((id, index) => {
+        state.fullCourtPositions[id] = { ...DEFAULT_COURT_POSITIONS[index] };
+      });
+      renderFullCourt();
+    }
+
+    function ensureFullCourtPositions() {
+      const activeIds = new Set(state.onCourt);
+
+      Object.keys(state.fullCourtPositions).forEach(id => {
+        if (!activeIds.has(Number(id))) {
+          delete state.fullCourtPositions[id];
+        }
+      });
+
+      state.onCourt.forEach((id, index) => {
+        if (!state.fullCourtPositions[id]) {
+          state.fullCourtPositions[id] = { ...DEFAULT_COURT_POSITIONS[index] };
+        }
+      });
+    }
+
+    function fatigueBarHTML(id) {
+      const sec = state.minutes[id] || 0;
+      const maxSec = TOTAL_GAME_SECONDS[state.mode] || (80 * 60);
+      const ratio = Math.max(0, Math.min(1, sec / maxSec));
+      const pct = (ratio * 100).toFixed(0);
+
+      let levelClass = 'fatigue-low';
+      if (ratio > 0.66) levelClass = 'fatigue-high';
+      else if (ratio > 0.33) levelClass = 'fatigue-med';
+
+      return `
+        <div class="fatigue-wrap">
+          <div class="fatigue-bar-bg">
+            <div class="fatigue-bar-inner ${levelClass}" style="width:${pct}%;"></div>
+          </div>
+        </div>
+      `;
+    }
+
+    function flashElement(el, cls, duration = 250) {
+      if (!el) return;
+      el.classList.add(cls);
+      setTimeout(() => el.classList.remove(cls), duration);
+    }
+
+    function satSinceText(id) {
+      if (state.onCourt.includes(id)) return '';
+      const t0 = state.lastWentBenchAt?.[id];
+      if (t0 == null) return '';
+      const elapsed = getElapsedGameSeconds();
+      const satSecs = Math.max(0, elapsed - t0);
+      return `Off field: ${formatTime(satSecs)}`;
+    }
+
+    function getNextUpId() {
+      if (state.subMode) return null;
+      const elapsed = getElapsedGameSeconds();
+      if (elapsed < 60) return null;
+
+      const suggestion = computeSuggestedSubPairs();
+      if (!suggestion || !suggestion.pairs?.length) return null;
+
+      return suggestion.pairs[0].onId;
+    }
+
+    // ---------- RENDER ----------
+    function renderTeamSelect() {
+      const select = document.getElementById('teamSelect');
+      select.innerHTML = '';
+
+      Object.entries(TEAM_CONFIGS).forEach(([id, cfg]) => {
+        const opt = document.createElement('option');
+        opt.value = id;
+        opt.textContent = cfg.name;
+        if (id === state.teamId) opt.selected = true;
+        select.appendChild(opt);
+      });
+    }
+
+    function renderClock() {
+      document.getElementById('clockDisplay').textContent = formatTime(state.clockSeconds);
+
+      const status = document.getElementById('runningStatus');
+      status.textContent = state.running
+        ? 'Clock running · field time updating live'
+        : 'Clock paused · tap Start to begin';
+    }
+
+    function renderModeToggle() {
+      document.querySelectorAll('#modeToggle .mode-pill').forEach(btn => {
+        const mode = btn.dataset.mode;
+        btn.classList.toggle('active', mode === state.mode);
+      });
+    }
+
+    function renderPageToggle() {
+      document.querySelectorAll('#pageToggle .mode-pill').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.page === state.currentPage);
+      });
+
+      document.getElementById('rotationPage').classList.toggle('hidden', state.currentPage !== 'rotation');
+      document.getElementById('courtPage').classList.toggle('hidden', state.currentPage !== 'court');
+    }
+
+    function renderSubMode() {
+      const btn = document.getElementById('subModeBtn');
+      if (state.subMode) {
+        btn.classList.add('on');
+        btn.textContent = '🧩 Interchange Mode · ON';
+      } else {
+        btn.classList.remove('on');
+        btn.textContent = '🧩 Interchange Mode';
+      }
+    }
+
+    function createFieldChip(id) {
+      const p = findPlayer(id);
+      if (!p) return document.createElement('div');
+
+      const chip = document.createElement('div');
+      chip.className = 'player-chip';
+      chip.dataset.id = String(id);
+
+      if (state.subMode && state.selectedOn.includes(id)) {
+        chip.classList.add('selected');
+      }
+
+      if (state.running && !state.subMode) {
+        chip.classList.add('on-field-active');
+      }
+
+      const num = document.createElement('div');
+      num.className = 'number-pill';
+      num.textContent = p.number;
+      chip.appendChild(num);
+
+      const meta = document.createElement('div');
+      meta.className = 'player-meta';
+      meta.innerHTML = `
+        <div class="player-name">${p.name}</div>
+        <div class="player-role">${p.short}</div>
+        <div class="player-mins">${formatTime(state.minutes[id])} field</div>
+        ${fatigueBarHTML(id)}
+      `;
+      chip.appendChild(meta);
+
+      const side = document.createElement('div');
+      side.className = 'bench-controls';
+
+      const watchBtn = document.createElement('button');
+      watchBtn.className = 'watch-btn' + (state.fouls[id] ? ' on' : '');
+      watchBtn.textContent = state.fouls[id] ? 'Watch ⚠︎' : 'Watch';
+      watchBtn.dataset.foul = 'true';
+      side.appendChild(watchBtn);
+
+      const up = document.createElement('button');
+      up.className = 'bench-arrow court-arrow';
+      up.textContent = '▲';
+      up.dataset.dir = 'up';
+      side.appendChild(up);
+
+      const down = document.createElement('button');
+      down.className = 'bench-arrow court-arrow';
+      down.textContent = '▼';
+      down.dataset.dir = 'down';
+      side.appendChild(down);
+
+      chip.appendChild(side);
+      return chip;
+    }
+
+    function renderField() {
+      const rows = [
+        document.getElementById('forwardsRow'),
+        document.getElementById('halfForwardsRow'),
+        document.getElementById('midfieldRow'),
+        document.getElementById('followersRow'),
+        document.getElementById('halfBacksRow'),
+        document.getElementById('backsRow')
+      ];
+
+      rows.forEach(row => row.innerHTML = '');
+
+      const ids = state.onCourt;
+
+      const rowGroups = [
+        ids.slice(0, 3),
+        ids.slice(3, 6),
+        ids.slice(6, 9),
+        ids.slice(9, 12),
+        ids.slice(12, 15),
+        ids.slice(15, 18)
+      ];
+
+      rowGroups.forEach((group, index) => {
+        group.forEach(id => {
+          if (id != null) rows[index].appendChild(createFieldChip(id));
+        });
+      });
+    }
+
+    function renderBench() {
+      const grid = document.getElementById('benchGrid');
+      grid.innerHTML = '';
+
+      const nextUpId = getNextUpId();
+
+      state.bench.forEach(id => {
+        const p = findPlayer(id);
+        if (!p) return;
+
+        const card = document.createElement('div');
+        card.className = 'bench-card';
+        card.dataset.id = String(id);
+
+        if (state.subMode && state.selectedBench.includes(id)) {
+          card.classList.add('selected');
+        }
+
+        if (nextUpId != null && id === nextUpId) {
+          card.classList.add('nextup');
+          const pill = document.createElement('div');
+          pill.className = 'nextup-pill';
+          pill.textContent = 'NEXT ON';
+          card.appendChild(pill);
+        }
+
+        const main = document.createElement('div');
+        main.className = 'bench-main';
+
+        const num = document.createElement('div');
+        num.className = 'bench-number';
+        num.textContent = p.number;
+        main.appendChild(num);
+
+        const labels = document.createElement('div');
+        labels.className = 'bench-labels';
+
+        const satText = satSinceText(id);
+
+        labels.innerHTML = `
+          <div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${p.name}</div>
+          <div class="bench-mins">${formatTime(state.minutes[id])}</div>
+          ${satText ? `<div class="bench-sat">${satText}</div>` : ``}
+          ${fatigueBarHTML(id)}
+        `;
+
+        main.appendChild(labels);
+
+        const watchBtn = document.createElement('button');
+        watchBtn.className = 'watch-btn small' + (state.fouls[id] ? ' on' : '');
+        watchBtn.textContent = state.fouls[id] ? 'Watch ⚠︎' : 'Watch';
+        watchBtn.dataset.foul = 'true';
+        main.appendChild(watchBtn);
+
+        card.appendChild(main);
+
+        const ctrls = document.createElement('div');
+        ctrls.className = 'bench-controls';
+
+        const up = document.createElement('button');
+        up.className = 'bench-arrow';
+        up.textContent = '▲';
+        up.dataset.dir = 'up';
+        ctrls.appendChild(up);
+
+        const down = document.createElement('button');
+        down.className = 'bench-arrow';
+        down.textContent = '▼';
+        down.dataset.dir = 'down';
+        ctrls.appendChild(down);
+
+        card.appendChild(ctrls);
+        grid.appendChild(card);
+      });
+    }
+
+    function renderMinutes() {
+      const list = document.getElementById('minutesList');
+      list.innerHTML = '';
+
+      const nextUpId = getNextUpId();
+      const allIds = state.onCourt.concat(state.bench);
+
+      allIds.forEach(id => {
+        const p = findPlayer(id);
+        if (!p) return;
+
+        const row = document.createElement('div');
+        row.className = 'minutes-row';
+        if (state.onCourt.includes(id)) row.classList.add('on');
+
+        const info = document.createElement('div');
+        info.className = 'minutes-info';
+
+        const num = document.createElement('div');
+        num.className = 'minutes-number';
+        num.textContent = p.number;
+        info.appendChild(num);
+
+        const nb = document.createElement('div');
+        nb.className = 'minutes-name-block';
+
+        const satText = satSinceText(id);
+
+        nb.innerHTML = `
+          <div style="display:flex; align-items:center; gap:6px; min-width:0;">
+            <div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${p.name}</div>
+            ${(!state.onCourt.includes(id) && nextUpId != null && id === nextUpId) ? `<div class="minutes-nextup">NEXT ON</div>` : ``}
+          </div>
+          <div class="minutes-role">${p.long}</div>
+          <div class="minutes-status ${state.onCourt.includes(id) ? '' : 'bench'}">
+            ${state.onCourt.includes(id) ? 'On Field' : 'Interchange'}
+          </div>
+          ${(!state.onCourt.includes(id) && satText) ? `<div class="minutes-sat">${satText}</div>` : ``}
+          ${fatigueBarHTML(id)}
+        `;
+
+        info.appendChild(nb);
+
+        if (state.fouls[id]) {
+          const watch = document.createElement('div');
+          watch.className = 'minutes-watch-pill';
+          watch.textContent = 'Watch';
+          info.appendChild(watch);
+        }
+
+        row.appendChild(info);
+
+        const time = document.createElement('div');
+        time.className = 'minutes-time';
+        time.textContent = formatTime(state.minutes[id]);
+        row.appendChild(time);
+
+        list.appendChild(row);
+      });
+    }
+
+    function renderAlerts() {
+      const container = document.getElementById('alerts');
+      container.innerHTML = '';
+
+      const ids = state.onCourt.concat(state.bench);
+      if (!ids.length) return;
+
+      let total = 0;
+      ids.forEach(id => total += state.minutes[id] || 0);
+      if (total === 0) return;
+
+      const avg = total / ids.length;
+
+      let over = null;
+      let under = null;
+
+      ids.forEach(id => {
+        const diff = (state.minutes[id] || 0) - avg;
+        if (diff > 180 && (!over || diff > over.diff)) over = { id, diff };
+        if (diff < -180 && (!under || diff < under.diff)) under = { id, diff };
+      });
+
+      if (over) {
+        const p = findPlayer(over.id);
+        const line = document.createElement('div');
+        line.className = 'alert-line warn';
+        line.textContent = `${p.name} is ${formatTime(over.diff)} above squad average field time.`;
+        container.appendChild(line);
+      }
+
+      if (under) {
+        const p = findPlayer(under.id);
+        const line = document.createElement('div');
+        line.className = 'alert-line';
+        line.textContent = `${p.name} is ${formatTime(-under.diff)} below squad average field time.`;
+        container.appendChild(line);
+      }
+    }
+
+    function renderSegments() {
+      const container = document.getElementById('segments');
+      container.innerHTML = '';
+
+      state.segments.forEach(seg => {
+        const card = document.createElement('div');
+        card.className = 'segment-card';
+
+        const title = document.createElement('div');
+        title.className = 'segment-card-title';
+        title.textContent = `${seg.segment} · ${seg.modeLabel}`;
+        card.appendChild(title);
+
+        seg.top.forEach(item => {
+          const line = document.createElement('div');
+          line.textContent = `${item.name}: ${formatTime(item.seconds)}`;
+          card.appendChild(line);
+        });
+
+        container.appendChild(card);
+      });
+    }
+
+    function renderSegmentControls() {
+      const container = document.getElementById('segmentButtons');
+      container.innerHTML = '';
+
+      const modeCfg = MODES[state.mode];
+
+      modeCfg.segmentLabels.forEach(label => {
+        const btn = document.createElement('button');
+        btn.className = 'segment-btn' + (label === state.currentSegment ? ' active' : '');
+        btn.dataset.seg = label;
+        btn.textContent = label;
+        container.appendChild(btn);
+      });
+
+      const segLabel = document.getElementById('segmentLabel');
+      segLabel.textContent = `${state.currentSegment} · ${modeCfg.label}`;
+    }
+
+    function renderFullCourt() {
+      ensureFullCourtPositions();
+
+      const holder = document.getElementById('fullCourtPlayers');
+      const legend = document.getElementById('fullCourtLegend');
+
+      holder.innerHTML = '';
+      legend.innerHTML = '';
+
+      state.onCourt.forEach(id => {
+        const p = findPlayer(id);
+        if (!p) return;
+
+        const pos = state.fullCourtPositions[id] || { x: 50, y: 50 };
+
+        const marker = document.createElement('div');
+        marker.className = 'court-player';
+        marker.dataset.id = String(id);
+        marker.style.left = `${pos.x}%`;
+        marker.style.top = `${pos.y}%`;
+
+        marker.innerHTML = `
+          <div class="court-player-number">${p.number}</div>
+          <div class="court-player-role">${p.short}</div>
+          <div class="court-player-name">${p.name.split(' ')[0]}</div>
+        `;
+
+        holder.appendChild(marker);
+
+        const card = document.createElement('div');
+        card.className = 'legend-card';
+        card.innerHTML = `
+          <strong>#${p.number} ${p.name}</strong>
+          <span>${p.long} · ${formatTime(state.minutes[id])} field time</span>
+        `;
+        legend.appendChild(card);
+      });
+
+      initFullCourtDrag();
+    }
+
+    function renderAll() {
+      renderTeamSelect();
+      renderClock();
+      renderModeToggle();
+      renderPageToggle();
+      renderSubMode();
+      renderField();
+      renderBench();
+      renderMinutes();
+      renderAlerts();
+      renderSegments();
+      renderSegmentControls();
+      renderFullCourt();
+      saveState();
+    }
+
+    // ---------- GAME LOGIC ----------
+    function tick() {
+      if (!state.running) return;
+
+      if (state.clockSeconds <= 0) {
+        state.clockSeconds = 0;
+        state.running = false;
+        document.getElementById('startBtn').textContent = 'Start';
+        renderClock();
+        renderField();
+        renderBench();
+        renderMinutes();
+        renderFullCourt();
+        return;
+      }
+
+      state.clockSeconds -= 1;
+
+      state.onCourt.forEach(id => {
+        if (state.minutes[id] == null) state.minutes[id] = 0;
+        state.minutes[id] += 1;
+      });
+
+      renderClock();
+      renderField();
+      renderBench();
+      renderMinutes();
+      renderAlerts();
+
+      if (state.currentPage === 'court') {
+        renderFullCourt();
+      }
+    }
+
+    setInterval(tick, 1000);
+
+    function setMode(newMode) {
+      if (!MODES[newMode]) return;
+
+      state.mode = newMode;
+      const cfg = MODES[newMode];
+
+      state.currentSegment = cfg.segmentLabels[0];
+      state.clockSeconds = cfg.segmentLength;
+
+      initBenchTimers();
+
+      renderModeToggle();
+      renderSegmentControls();
+      renderClock();
+      renderMinutes();
+      renderBench();
+      renderField();
+      renderFullCourt();
+    }
+
+    function loadTeam(teamId) {
+      const cfg = TEAM_CONFIGS[teamId];
+      if (!cfg) return;
+
+      state.teamId = teamId;
+      state.onCourt = [...cfg.initialOn];
+      state.bench = [...cfg.initialBench];
+      state.subMode = false;
+      state.selectedOn = [];
+      state.selectedBench = [];
+      state.segments = [];
+      state.fullCourtPositions = {};
+
+      initPlayerStats();
+      initBenchTimers();
+      resetFullCourtPositions();
+
+      renderAll();
+    }
+
+    function toggleSubMode() {
+      state.subMode = !state.subMode;
+      state.selectedOn = [];
+      state.selectedBench = [];
+
+      renderSubMode();
+      renderField();
+      renderBench();
+      renderMinutes();
+    }
+
+    function toggleWatch(id) {
+      if (state.fouls[id] == null) return;
+
+      state.fouls[id] = !state.fouls[id];
+
+      renderField();
+      renderBench();
+      renderMinutes();
+      renderFullCourt();
+    }
+
+    function toggleOnSelection(id) {
+      if (!state.subMode) return;
+
+      const idx = state.selectedOn.indexOf(id);
+      if (idx >= 0) state.selectedOn.splice(idx, 1);
+      else state.selectedOn.push(id);
+
+      renderField();
+    }
+
+    function toggleBenchSelection(id) {
+      if (!state.subMode) return;
+
+      const idx = state.selectedBench.indexOf(id);
+      if (idx >= 0) state.selectedBench.splice(idx, 1);
+      else state.selectedBench.push(id);
+
+      renderBench();
+    }
+
+    function moveOnCourt(id, dir) {
+      const idx = state.onCourt.indexOf(id);
+      if (idx === -1) return;
+
+      const newIdx = idx + (dir === 'up' ? -1 : 1);
+      if (newIdx < 0 || newIdx >= state.onCourt.length) return;
+
+      const arr = state.onCourt;
+      const temp = arr[idx];
+      arr[idx] = arr[newIdx];
+      arr[newIdx] = temp;
+
+      renderField();
+      renderMinutes();
+      renderFullCourt();
+    }
+
+    function moveBench(id, dir) {
+      const idx = state.bench.indexOf(id);
+      if (idx === -1) return;
+
+      const newIdx = idx + (dir === 'up' ? -1 : 1);
+      if (newIdx < 0 || newIdx >= state.bench.length) return;
+
+      const arr = state.bench;
+      const temp = arr[idx];
+      arr[idx] = arr[newIdx];
+      arr[newIdx] = temp;
+
+      renderBench();
+    }
+
+    function confirmSubs() {
+      if (!state.subMode) return;
+      if (state.selectedOn.length === 0 && state.selectedBench.length === 0) return;
+
+      if (state.selectedOn.length !== state.selectedBench.length) {
+        alert('Select the same number of players to come off and go on.');
+        return;
+      }
+
+      const elapsed = getElapsedGameSeconds();
+
+      for (let i = 0; i < state.selectedOn.length; i++) {
+        const offId = state.selectedOn[i];
+        const onId = state.selectedBench[i];
+
+        const offIdx = state.onCourt.indexOf(offId);
+        const benchIdx = state.bench.indexOf(onId);
+
+        if (offIdx === -1 || benchIdx === -1) continue;
+
+        state.lastWentBenchAt[offId] = elapsed;
+        state.lastWentBenchAt[onId] = null;
+
+        const offPosition = state.fullCourtPositions[offId] || { ...DEFAULT_COURT_POSITIONS[offIdx] };
+
+        state.onCourt[offIdx] = onId;
+        state.bench[benchIdx] = offId;
+
+        delete state.fullCourtPositions[offId];
+        state.fullCourtPositions[onId] = offPosition;
+      }
+
+      state.selectedOn = [];
+      state.selectedBench = [];
+
+      renderField();
+      renderBench();
+      renderMinutes();
+      renderFullCourt();
+
+      flashElement(document.getElementById('confirmSubBtn'), 'btn-haptic', 150);
+      flashElement(document.getElementById('benchWrapper'), 'panel-flash', 350);
+    }
+
+    function cancelSubs() {
+      state.selectedOn = [];
+      state.selectedBench = [];
+
+      renderField();
+      renderBench();
+      renderMinutes();
+    }
+
+    function resetGame() {
+      const teamCfg = TEAM_CONFIGS[state.teamId];
+      const modeCfg = MODES[state.mode];
+
+      state.running = false;
+      state.clockSeconds = modeCfg.segmentLength;
+      state.currentSegment = modeCfg.segmentLabels[0];
+      state.onCourt = [...teamCfg.initialOn];
+      state.bench = [...teamCfg.initialBench];
+      state.subMode = false;
+      state.selectedOn = [];
+      state.selectedBench = [];
+      state.segments = [];
+      state.fullCourtPositions = {};
+
+      initPlayerStats();
+      initBenchTimers();
+      resetFullCourtPositions();
+
+      renderAll();
+      document.getElementById('startBtn').textContent = 'Start';
+    }
+
+    function saveSegmentSnapshot() {
+      const allIds = state.onCourt.concat(state.bench);
+      if (!allIds.length) return;
+
+      const snapshot = allIds.map(id => ({
+        id,
+        name: findPlayer(id)?.name || 'Player',
+        seconds: state.minutes[id] || 0
+      }));
+
+      snapshot.sort((a, b) => b.seconds - a.seconds);
+
+      const top = snapshot.slice(0, 5);
+
+      state.segments.push({
+        segment: state.currentSegment,
+        modeLabel: MODES[state.mode].label,
+        top
+      });
+
+      renderSegments();
+
+      const segmentsContainer = document.getElementById('segments');
+      const lastCard = segmentsContainer.lastElementChild;
+
+      flashElement(lastCard, 'segment-flash', 450);
+      flashElement(document.getElementById('saveSegmentBtn'), 'btn-haptic', 150);
+    }
+
+    // ---------- SUGGESTED INTERCHANGES ----------
+    function computeSuggestedSubPairs() {
+      const totalPlayers = state.onCourt.length + state.bench.length;
+      if (!state.onCourt.length || !state.bench.length || totalPlayers === 0) return null;
+
+      const elapsed = getElapsedGameSeconds();
+      if (elapsed < 60) return null;
+
+      const idealPerPlayer = (elapsed * state.onCourt.length) / totalPlayers;
+      const diffMap = {};
+      const allIds = state.onCourt.concat(state.bench);
+
+      allIds.forEach(id => {
+        diffMap[id] = (state.minutes[id] || 0) - idealPerPlayer;
+      });
+
+      const onSorted = [...state.onCourt].sort((a, b) => diffMap[b] - diffMap[a]);
+      const benchSorted = [...state.bench].sort((a, b) => diffMap[a] - diffMap[b]);
+
+      const maxPairs = Math.min(4, onSorted.length, benchSorted.length);
+      const pairs = [];
+
+      for (let i = 0; i < maxPairs; i++) {
+        const offId = onSorted[i];
+        const onId = benchSorted[i];
+        const offSecs = state.minutes[offId] || 0;
+        const onSecs = state.minutes[onId] || 0;
+        const gapMinutes = (offSecs - onSecs) / 60;
+
+        if (gapMinutes <= 2) continue;
+
+        pairs.push({
+          offId,
+          onId,
+          offSecs,
+          onSecs,
+          gapMinutes
+        });
+      }
+
+      if (!pairs.length) return null;
+
+      let tag;
+      const biggestGap = pairs[0].gapMinutes;
+
+      if (biggestGap > 8) {
+        tag = 'Big field-time spread — this interchange will help pull the squad back towards even minutes.';
+      } else if (biggestGap > 4) {
+        tag = 'Good rotation window — use this to balance workload without overcorrecting.';
+      } else {
+        tag = 'Small but useful edge — this keeps the bench involved and protects fatigue.';
+      }
+
+      return { pairs, tag };
+    }
+
+    function showSuggestedSub() {
+      const suggestionCard = document.getElementById('suggestionCard');
+      const suggestPairsEl = document.getElementById('suggestPairs');
+      const suggestTagEl = document.getElementById('suggestTag');
+
+      const suggestion = computeSuggestedSubPairs();
+
+      if (!suggestion) {
+        suggestionCard.classList.add('hidden');
+        return;
+      }
+
+      suggestPairsEl.innerHTML = '';
+
+      suggestion.pairs.forEach((pair, idx) => {
+        const off = findPlayer(pair.offId);
+        const on = findPlayer(pair.onId);
+
+        const pairDiv = document.createElement('div');
+        pairDiv.className = 'suggestion-pair';
+
+        const main = document.createElement('div');
+        main.className = 'suggestion-pair-main';
+
+        const offBlock = document.createElement('div');
+        offBlock.className = 'suggestion-off';
+        offBlock.innerHTML = `
+          <div class="suggestion-label">Off ${idx + 1}</div>
+          <div class="suggestion-player">${off.name} (#${off.number}) · ${formatTime(pair.offSecs)}</div>
+        `;
+
+        const onBlock = document.createElement('div');
+        onBlock.className = 'suggestion-on';
+        onBlock.innerHTML = `
+          <div class="suggestion-label">On ${idx + 1}</div>
+          <div class="suggestion-player">${on.name} (#${on.number}) · ${formatTime(pair.onSecs)}</div>
+        `;
+
+        main.appendChild(offBlock);
+        main.appendChild(onBlock);
+        pairDiv.appendChild(main);
+
+        const gap = document.createElement('div');
+        gap.className = 'suggestion-gap';
+        gap.textContent = `Field-time gap: ${pair.gapMinutes.toFixed(1)} mins`;
+
+        pairDiv.appendChild(gap);
+        suggestPairsEl.appendChild(pairDiv);
+      });
+
+      suggestTagEl.textContent = suggestion.tag;
+
+      suggestionCard.classList.remove('hidden');
+      flashElement(suggestionCard, 'panel-flash', 350);
+    }
+
+    // ---------- AFL OVAL DRAG ----------
+    function initFullCourtDrag() {
+      const court = document.getElementById('fullCourt');
+      if (!court) return;
+
+      document.querySelectorAll('.court-player').forEach(player => {
+        if (player.dataset.dragReady === 'true') return;
+        player.dataset.dragReady = 'true';
+
+        player.addEventListener('pointerdown', e => {
+          e.preventDefault();
+
+          const id = Number(player.dataset.id);
+          player.setPointerCapture(e.pointerId);
+          player.style.cursor = 'grabbing';
+          player.style.zIndex = '20';
+
+          function movePlayer(ev) {
+            const rect = court.getBoundingClientRect();
+
+            let x = ((ev.clientX - rect.left) / rect.width) * 100;
+            let y = ((ev.clientY - rect.top) / rect.height) * 100;
+
+            x = Math.max(6, Math.min(94, x));
+            y = Math.max(6, Math.min(94, y));
+
+            state.fullCourtPositions[id] = { x, y };
+
+            player.style.left = `${x}%`;
+            player.style.top = `${y}%`;
+          }
+
+          function stopDrag(ev) {
+            try {
+              player.releasePointerCapture(ev.pointerId);
+            } catch (err) {}
+
+            player.style.cursor = 'grab';
+            player.style.zIndex = '5';
+
+            player.removeEventListener('pointermove', movePlayer);
+            player.removeEventListener('pointerup', stopDrag);
+            player.removeEventListener('pointercancel', stopDrag);
+          }
+
+          player.addEventListener('pointermove', movePlayer);
+          player.addEventListener('pointerup', stopDrag);
+          player.addEventListener('pointercancel', stopDrag);
+        });
+      });
+    }
+
+    // ---------- EVENT LISTENERS ----------
+    document.getElementById('startBtn').addEventListener('click', () => {
+      state.running = !state.running;
+
+      const startBtn = document.getElementById('startBtn');
+      startBtn.textContent = state.running ? 'Pause' : 'Start';
+
+      flashElement(startBtn, 'btn-haptic', 150);
+
+      renderClock();
+      renderField();
+      renderBench();
+      renderMinutes();
+      renderFullCourt();
+    });
+
+    document.getElementById('resetBtn').addEventListener('click', resetGame);
+
+    document.getElementById('subModeBtn').addEventListener('click', () => {
+      flashElement(document.getElementById('subModeBtn'), 'btn-haptic', 150);
+      toggleSubMode();
+    });
+
+    document.getElementById('confirmSubBtn').addEventListener('click', confirmSubs);
+    document.getElementById('cancelSubBtn').addEventListener('click', cancelSubs);
+
+    document.getElementById('teamSelect').addEventListener('change', e => {
+      loadTeam(e.target.value);
+    });
+
+    document.getElementById('modeToggle').addEventListener('click', e => {
+      const btn = e.target.closest('.mode-pill');
+      if (!btn || !btn.dataset.mode) return;
+
+      flashElement(btn, 'btn-haptic', 150);
+      setMode(btn.dataset.mode);
+    });
+
+    document.getElementById('pageToggle').addEventListener('click', e => {
+      const btn = e.target.closest('.mode-pill');
+      if (!btn || !btn.dataset.page) return;
+
+      state.currentPage = btn.dataset.page;
+
+      flashElement(btn, 'btn-haptic', 150);
+      renderPageToggle();
+      renderFullCourt();
+    });
+
+    document.getElementById('fieldArea').addEventListener('click', e => {
+      const chip = e.target.closest('.player-chip');
+      if (!chip) return;
+
+      const id = parseInt(chip.dataset.id, 10);
+
+      const arrow = e.target.closest('.court-arrow');
+      if (arrow) {
+        moveOnCourt(id, arrow.dataset.dir);
+        return;
+      }
+
+      if (e.target.closest('[data-foul]')) {
+        toggleWatch(id);
+        return;
+      }
+
+      toggleOnSelection(id);
+    });
+
+    document.getElementById('benchGrid').addEventListener('click', e => {
+      const card = e.target.closest('.bench-card');
+      if (!card) return;
+
+      const id = parseInt(card.dataset.id, 10);
+
+      if (e.target.closest('[data-foul]')) {
+        toggleWatch(id);
+        return;
+      }
+
+      const arrow = e.target.closest('.bench-arrow');
+      if (arrow) {
+        moveBench(id, arrow.dataset.dir);
+        return;
+      }
+
+      toggleBenchSelection(id);
+    });
+
+    document.getElementById('segmentButtons').addEventListener('click', e => {
+      const btn = e.target.closest('.segment-btn');
+      if (!btn) return;
+
+      state.currentSegment = btn.dataset.seg;
+      state.clockSeconds = MODES[state.mode].segmentLength;
+
+      renderSegmentControls();
+      renderClock();
+      renderBench();
+      renderMinutes();
+      renderFullCourt();
+    });
+
+    document.getElementById('saveSegmentBtn').addEventListener('click', saveSegmentSnapshot);
+
+    document.getElementById('suggestSubBtn').addEventListener('click', () => {
+      flashElement(document.getElementById('suggestSubBtn'), 'btn-haptic', 150);
+      showSuggestedSub();
+    });
+
+    document.getElementById('resetCourtPositionsBtn').addEventListener('click', () => {
+      resetFullCourtPositions();
+      flashElement(document.getElementById('resetCourtPositionsBtn'), 'btn-haptic', 150);
+    });
+
+    // ---------- INIT ----------
+    if (!loadSavedState()) {
+      initPlayerStats();
+      initBenchTimers();
+      resetFullCourtPositions();
+    }
+
+    renderAll();
+  </script>
+</body>
+</html>
