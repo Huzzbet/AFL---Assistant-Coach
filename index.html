@@ -1506,14 +1506,14 @@
 
     function saveState() {
       try {
-        localStorage.setItem('aflRotationTrackerStateV2', JSON.stringify(state));
+        localStorage.setItem('aflRotationTrackerStateV3', JSON.stringify(state));
       } catch (err) {
         console.warn('Could not save AFL rotation tracker state', err);
       }
     }
 
     function loadSavedState() {
-      const saved = localStorage.getItem('aflRotationTrackerStateV2');
+    const saved = localStorage.getItem('aflRotationTrackerStateV3');
       if (!saved) return false;
 
       try {
